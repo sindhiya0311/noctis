@@ -31,7 +31,10 @@ function MapClick({ savingLocation, setSavingLocation }) {
     click(e) {
       if (!savingLocation) return;
 
-      const saved = JSON.parse(localStorage.getItem("savedLocations")) || [];
+      const user = JSON.parse(sessionStorage.getItem("user"));
+      const key = `savedLocations_${user?._id || user?.id}`;
+
+      const saved = JSON.parse(localStorage.getItem(key)) || [];
 
       saved.push({
         name: savingLocation,
@@ -39,14 +42,17 @@ function MapClick({ savingLocation, setSavingLocation }) {
         lng: e.latlng.lng,
       });
 
-      localStorage.setItem("savedLocations", JSON.stringify(saved));
+      localStorage.setItem(key, JSON.stringify(saved));
+
+      // 🔥 trigger UI reload
+      window.dispatchEvent(new Event("savedLocationsUpdated"));
+
       setSavingLocation(null);
     },
   });
 
   return null;
 }
-
 export default function MapView({
   savingLocation,
   setSavingLocation,
@@ -118,11 +124,11 @@ export default function MapView({
         newContext = "Entered unsafe zone";
       }
 
-      const saved = JSON.parse(localStorage.getItem("savedLocations")) || [];
+      const key = `savedLocations_${user?._id || user?.id}`;
+      const saved = JSON.parse(localStorage.getItem(key)) || [];
 
       const home = saved.find((l) => l.name === "Home");
       const office = saved.find((l) => l.name === "Office");
-
       if (home && office) {
         const deviation = checkRouteDeviation(
           current,
@@ -153,7 +159,7 @@ export default function MapView({
         unsafe,
         deviation: deviationFlag,
         risk: emergency ? 100 : newRisk,
-        context: emergency ? "EMERGENCY SOS TRIGGERED" : newContext,
+        context: emergency ? context : newContext,
         transportType,
         cabNumber,
         driverName,

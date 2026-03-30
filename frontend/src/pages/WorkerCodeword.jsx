@@ -2,7 +2,14 @@ import { useState } from "react";
 import { Mic } from "lucide-react";
 
 export default function WorkerCodeword() {
-  const [word, setWord] = useState(localStorage.getItem("codeword") || "");
+  const user = JSON.parse(sessionStorage.getItem("user"));
+  const storageKey = `codeword_${user?.id}`;
+
+  const [word, setWord] = useState(localStorage.getItem(storageKey) || "");
+
+  const saveCodeword = () => {
+    localStorage.setItem(storageKey, word);
+  };
 
   return (
     <div
@@ -29,7 +36,7 @@ export default function WorkerCodeword() {
         className="mt-3 bg-gradient-to-r from-indigo-500 to-blue-500 
       px-4 py-2 rounded-xl shadow-lg 
       hover:scale-[1.02] transition-all"
-        onClick={() => localStorage.setItem("codeword", word)}
+        onClick={saveCodeword}
       >
         Save Codeword
       </button>

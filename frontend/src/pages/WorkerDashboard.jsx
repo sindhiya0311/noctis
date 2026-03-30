@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { AlertTriangle, Shield, Siren, Radar } from "lucide-react";
-
+import { getUserStorage, setUserStorage } from "../utils/storage";
 import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { RiskContext } from "../context/RiskContext";
 
@@ -11,7 +11,7 @@ import WorkerCodeword from "./WorkerCodeword";
 import CodewordModal from "../components/CodewordModal";
 
 import axios from "axios";
-
+import socket from "../socket";
 export default function WorkerDashboard() {
   const { risk, context, riskLevel, triggerManualSOS, triggerCodewordSOS } =
     useContext(RiskContext);
@@ -46,10 +46,7 @@ export default function WorkerDashboard() {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      console.error("Speech Recognition not supported in this browser.");
-      return;
-    }
+    if (!SpeechRecognition || !user) return;
 
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
@@ -67,7 +64,7 @@ export default function WorkerDashboard() {
 
     recognition.onend = () => {
       isStarted = false;
-      // Auto-restart logic
+      // Faster auto-restart logic
       setTimeout(() => {
         if (!isStarted) {
           try {
@@ -76,7 +73,7 @@ export default function WorkerDashboard() {
             console.error("Failed to restart recognition:", err);
           }
         }
-      }, 500);
+      }, 300);
     };
 
     recognition.onerror = (event) => {
@@ -87,17 +84,30 @@ export default function WorkerDashboard() {
     };
 
     recognition.onresult = (event) => {
-      const codeword = localStorage.getItem("codeword")?.toLowerCase();
-      if (!codeword) return;
+      // FIX: Ensure key matches WorkerCodeword.jsx (using _id or id consistently)
+      const storageKey = `codeword_${user?._id || user?.id}`;
+      const savedWord = localStorage.getItem(storageKey);
 
-      let currentTranscript = "";
+      if (!savedWord) return;
+      const codeword = savedWord.toLowerCase().trim();
+
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        currentTranscript += event.results[i][0].transcript.toLowerCase();
-      }
+        const transcript = event.results[i][0].transcript.toLowerCase();
 
-      if (currentTranscript.includes(codeword)) {
-        console.log("CODEWORD DETECTED:", codeword);
-        triggerCodewordSOS();
+        // Immediate check on interim or final results for high speed
+        if (transcript.includes(codeword)) {
+          console.log("!!! CODEWORD MATCHED !!!", codeword);
+
+          triggerCodewordSOS();
+
+          // 🔥 ADD THIS LINE
+          socket.emit("worker:sos", {
+            userId: user?._id || user?.id,
+          });
+
+          recognition.stop();
+          break;
+        }
       }
     };
 
@@ -109,25 +119,25 @@ export default function WorkerDashboard() {
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.onend = null; // Prevent restart on unmount
+        recognitionRef.current.onend = null;
         recognitionRef.current.stop();
       }
     };
-  }, [triggerCodewordSOS]);
+  }, [triggerCodewordSOS, user]);
   /* -------------------------------------------------------------- */
 
   useEffect(() => {
-    if (user && user.id) loadRequests();
+    if (user && (user.id || user._id)) loadRequests();
 
-    const word = localStorage.getItem("codeword");
+    const storageKey = `codeword_${user?._id || user?.id}`;
+    const word = localStorage.getItem(storageKey);
     if (!word) setOpenCodeword(true);
   }, [user]);
 
   const loadRequests = async () => {
     if (!user) return;
-    const res = await axios.get(
-      `http://localhost:5000/api/requests/${user.id}`,
-    );
+    const userId = user._id || user.id;
+    const res = await axios.get(`http://localhost:5000/api/requests/${userId}`);
     setRequests(res.data.filter((r) => r.type === "enterprise"));
   };
 
@@ -147,9 +157,10 @@ export default function WorkerDashboard() {
 
   const sendFamilyRequest = async () => {
     if (!user) return;
+    const userId = user._id || user.id;
     try {
       await axios.post("http://localhost:5000/api/requests/send", {
-        fromUser: user.id,
+        fromUser: userId,
         email: familyEmail,
         type: "family",
       });
@@ -279,7 +290,13 @@ export default function WorkerDashboard() {
                 </div>
 
                 <button
-                  onClick={triggerManualSOS}
+                  onClick={() => {
+                    triggerManualSOS();
+
+                    socket.emit("worker:sos", {
+                      userId: user?._id || user?.id,
+                    });
+                  }}
                   className="bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-500/40 rounded-2xl p-4 flex gap-2 w-full justify-center hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-red-500/20"
                 >
                   <Siren size={18} />

@@ -8,10 +8,20 @@ export default function WorkerSavedLocations({ setSavingLocation }) {
 
   useEffect(() => {
     load();
+
+    const reload = () => load();
+    window.addEventListener("savedLocationsUpdated", reload);
+
+    return () => window.removeEventListener("savedLocationsUpdated", reload);
   }, []);
 
+  const getKey = () => {
+    const user = JSON.parse(sessionStorage.getItem("user"));
+    return `savedLocations_${user?._id || user?.id}`;
+  };
+
   const load = () => {
-    const saved = JSON.parse(localStorage.getItem("savedLocations")) || [];
+    const saved = JSON.parse(localStorage.getItem(getKey())) || [];
     setLocations(saved);
   };
 
@@ -24,7 +34,8 @@ export default function WorkerSavedLocations({ setSavingLocation }) {
   const deleteLocation = (i) => {
     const updated = [...locations];
     updated.splice(i, 1);
-    localStorage.setItem("savedLocations", JSON.stringify(updated));
+
+    localStorage.setItem(getKey(), JSON.stringify(updated));
     setLocations(updated);
   };
 
@@ -37,7 +48,7 @@ export default function WorkerSavedLocations({ setSavingLocation }) {
     const updated = [...locations];
     updated[editingIndex].name = name;
 
-    localStorage.setItem("savedLocations", JSON.stringify(updated));
+    localStorage.setItem(getKey(), JSON.stringify(updated));
     setLocations(updated);
 
     setEditingIndex(null);

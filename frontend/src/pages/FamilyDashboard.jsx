@@ -48,7 +48,7 @@ export default function FamilyDashboard() {
       const res = await axios.get(
         `http://localhost:5000/api/requests/linked/${user.id}`,
       );
-      if (res.data.length > 0) setLinked(true);
+      setLinked(res.data.length > 0);
     } catch (err) {
       console.error(err);
     }
@@ -58,8 +58,10 @@ export default function FamilyDashboard() {
     await axios.post("http://localhost:5000/api/requests/accept", {
       requestId: id,
     });
-    setLinked(true);
-    setRequests([]);
+
+    // reload properly
+    loadRequests();
+    checkLinked();
   };
 
   const rejectRequest = async (id) => {
@@ -72,14 +74,15 @@ export default function FamilyDashboard() {
   useEffect(() => {
     socket.on("workers:update", (workers) => {
       const w = Object.values(workers)[0];
-      if (w) {
-        setWorker(w);
-        if (w.risk >= 80) {
-          setAlert(true);
-          audioRef.current?.play().catch(() => {}); // FIX
-        } else {
-          setAlert(false);
-        }
+      if (!w) return;
+
+      setWorker(w);
+
+      if (w.risk >= 80) {
+        setAlert(true);
+        audioRef.current?.play().catch(() => {});
+      } else {
+        setAlert(false);
       }
     });
 
