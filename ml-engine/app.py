@@ -4,39 +4,33 @@ import numpy as np
 
 app = Flask(__name__)
 
-# load models
 anomaly_model = joblib.load("models/anomaly_model.pkl")
 classifier_model = joblib.load("models/classifier_model.pkl")
-
 
 @app.route("/predict", methods=["POST"])
 def predict():
     data = request.json
 
     speed = data.get("speed", 0)
-    stop = data.get("stop", 0)
+    stop = data.get("stopDuration", 0)
+    deviation = data.get("deviation", 0)
     night = data.get("night", 0)
     unsafe = data.get("unsafe", 0)
-    deviation = data.get("deviation", 0)
+    entropy = data.get("entropy", 0)
 
-    features = np.array([[speed, stop, night, unsafe, deviation]])
+    features = np.array([[speed, stop, deviation, night, unsafe, entropy]])
 
-    # anomaly detection
     anomaly = anomaly_model.predict(features)[0]
+    risk = classifier_model.predict(features)[0]
 
-    # classification
-    cls = classifier_model.predict(features)[0]
-
-    # convert to risk
     if anomaly == -1:
-        risk = 90
+        risk = min(100, risk + 20)
         context = "AI detected abnormal behaviour"
     else:
-        risk = int(cls)
-        context = "AI predicted normal movement"
+        context = "AI behaviour normal"
 
     return jsonify({
-        "risk": risk,
+        "risk": int(risk),
         "context": context,
         "anomaly": int(anomaly == -1)
     })

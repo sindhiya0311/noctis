@@ -1,41 +1,48 @@
-import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 
-np.random.seed(42)
+data = pd.read_csv("../data/training_data.csv")
 
-# Simulated data
-data = pd.DataFrame({
-    "distanceMoved": np.random.normal(100, 50, 500),
-    "timeGap": np.random.normal(60, 20, 500),
-    "isStopped": np.random.randint(0, 2, 500),
-    "movementChange": np.random.normal(10, 5, 500),
-    "isNight": np.random.randint(0, 2, 500)
-})
+def classify(row):
+    score = 0
 
-# Create labels (logic-based)
-def get_risk(row):
-    if row["isStopped"] == 1 and row["isNight"] == 1:
-        return "Emergency"
-    elif row["movementChange"] > 20:
-        return "Warning"
-    elif row["distanceMoved"] < 20:
-        return "Alert"
+    if row["stopDuration"] > 180:
+        score += 1
+
+    if row["deviation"] == 1:
+        score += 1
+
+    if row["night"] == 1:
+        score += 1
+
+    if row["unsafe"] == 1:
+        score += 1
+
+    if row["entropy"] > 10:
+        score += 1
+
+    if score >= 4:
+        return 90
+    elif score == 3:
+        return 70
+    elif score == 2:
+        return 40
     else:
-        return "Safe"
+        return 10
 
-data["risk"] = data.apply(get_risk, axis=1)
+data["risk"] = data.apply(classify, axis=1)
 
-# Features & labels
 X = data.drop("risk", axis=1)
 y = data["risk"]
 
-# Train model
-model = RandomForestClassifier()
+model = RandomForestClassifier(
+    n_estimators=200,
+    random_state=42
+)
+
 model.fit(X, y)
 
-# Save model
 joblib.dump(model, "../models/classifier_model.pkl")
 
-print("Classifier model trained & saved!")
+print("NOCTIS classifier trained")
